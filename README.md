@@ -70,6 +70,35 @@ winget install ffmpeg
    make install
    ```
 
+5. **(Optional) Configure PocketCasts for automated uploads:**
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local and add your PocketCasts credentials
+   ```
+
+## Configuration
+
+### PocketCasts Credentials
+
+To enable automated uploads to PocketCasts, create a `.env.local` file with your credentials:
+
+```bash
+# Copy the example file
+cp .env.local.example .env.local
+```
+
+Then edit `.env.local` with your PocketCasts login:
+
+```
+pocketcasts user: your-email@example.com
+pocketcasts password: your-password
+```
+
+**Security Notes:**
+- `.env.local` is gitignored and never committed to version control
+- Credentials are only stored locally on your machine
+- You can override these values using CLI flags if needed
+
 ## Usage
 
 ### Basic Usage
