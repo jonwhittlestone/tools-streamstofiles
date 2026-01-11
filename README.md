@@ -14,6 +14,11 @@ A Python CLI tool that downloads YouTube playlists and converts them to MP3 file
   - Comment (original YouTube URL)
   - Embedded album art (video thumbnail)
 - Files are numbered sequentially (01-xxx.mp3, 02-xxx.mp3) for proper ordering
+- **Automatic concatenation**: Creates both individual files AND a single long-form MP3 file (enabled by default)
+  - Perfect for podcast apps that don't support playlists (e.g., PocketCasts on WearOS)
+  - Metadata file includes timestamps for each track in the concatenated file
+  - Easy navigation by time to find specific tracks
+  - Use `--no-concatenate` to skip creating the concatenated file
 - Generate m3u playlist file with extended metadata
 - Create playlist metadata file with track listing and YouTube URLs
 - Organized output: `files/{sanitized-playlist-title}/`
@@ -108,6 +113,11 @@ streamstofiles --output-dir ~/music
 streamstofiles --no-update-tags
 ```
 
+**Skip creating concatenated file (only create individual MP3s):**
+```bash
+streamstofiles --no-concatenate
+```
+
 **Combine options:**
 ```bash
 streamstofiles "https://youtube.com/playlist?list=..." --quality 320 --output-dir ~/downloads
@@ -129,6 +139,7 @@ files/
     ├── 01-First_Video_Title.mp3
     ├── 02-Second_Video_Title.mp3
     ├── 03-Third_Video_Title.mp3
+    ├── Sanitized_Playlist_Title_complete.mp3  (concatenated file)
     ├── playlist.m3u
     └── playlist_info.txt
 ```
@@ -143,8 +154,9 @@ files/
 **The `playlist_info.txt` file** contains:
 - Playlist title and original YouTube URL
 - Download date and output directory
+- Concatenated file information with track timestamps (start/end times for navigation)
 - Complete track listing with metadata (title, artist, duration, YouTube URL)
-- Easy reference to find original sources
+- Easy reference to find original sources and navigate the concatenated file by time
 
 ## How It Works
 
@@ -154,7 +166,27 @@ files/
 4. **ID3 Tagging**: Adds comprehensive metadata tags (including YouTube URL) using mutagen library
 5. **Album Art**: Embeds video thumbnail as album art in each MP3
 6. **M3U Generation**: Creates an extended m3u playlist with all tracks
-7. **Metadata File**: Generates a text file with complete playlist and track information
+7. **Audio Concatenation**: Combines all MP3 files into a single long-form file (by default)
+8. **Metadata File**: Generates a text file with complete playlist info and track timestamps
+
+## Use Cases
+
+### PocketCasts on WearOS
+
+The concatenated file feature is specifically designed for podcast apps that don't support playlists or sequential playback of multiple files. PocketCasts on WearOS, for example, only plays one file at a time.
+
+**Workflow:**
+1. Download a YouTube playlist with `streamstofiles` (concatenation is enabled by default)
+2. Upload the `*_complete.mp3` file to PocketCasts Files feature
+3. The entire playlist plays as a single continuous file
+4. Use the `playlist_info.txt` timestamps to navigate to specific tracks:
+   ```
+   Track 3: Introduction to Machine Learning
+     Start: 00:23:45 | End: 00:45:12
+   ```
+5. Scrub to 00:23:45 in your podcast player to start Track 3
+
+This solves the limitation where WearOS apps can't play multiple files sequentially, giving you the full playlist experience in a single file.
 
 ## Development
 
@@ -169,6 +201,7 @@ files/
 │       ├── downloader.py     # yt-dlp integration
 │       ├── converter.py      # ID3 tag management
 │       ├── playlist.py       # M3U generation
+│       ├── concatenator.py   # Audio file concatenation
 │       ├── metadata.py       # Playlist metadata file generation
 │       └── utils.py          # Utility functions
 ├── pyproject.toml            # Project metadata and dependencies
@@ -201,22 +234,23 @@ files/
 
 ## Examples
 
-### Use Case: PocketCasts File Upload
+### Use Case: PocketCasts WearOS
 
-The numbered filename prefix (01-xxx, 02-xxx) ensures proper ordering when uploading files to podcast apps like PocketCasts:
+Perfect for uploading playlists to PocketCasts Files on WearOS devices:
 
 ```bash
-# Download a playlist for PocketCasts
+# Download a YouTube playlist
 streamstofiles "https://youtube.com/playlist?list=YOUR_EDUCATIONAL_PLAYLIST"
 
-# Files will be created as:
-# 01-Introduction.mp3
-# 02-Chapter_One.mp3
-# 03-Chapter_Two.mp3
-# etc.
+# This creates:
+# - Individual MP3s: 01-Introduction.mp3, 02-Chapter_One.mp3, etc.
+# - Concatenated file: Playlist_Name_complete.mp3 (all tracks in one file)
+# - playlist_info.txt (with timestamps for navigation)
 ```
 
-Simply upload the entire directory to PocketCasts Files feature for sequential playback.
+**For WearOS:** Upload the `*_complete.mp3` file to PocketCasts Files. The entire playlist plays continuously, and you can use the timestamps from `playlist_info.txt` to navigate to specific tracks.
+
+**For desktop/mobile:** Upload individual numbered files for traditional track-by-track playback.
 
 ### Downloading Multiple Playlists
 

@@ -13,6 +13,7 @@ class MetadataGenerator:
         output_path: Path,
         playlist_url: str,
         playlist_info: dict[str, Any],
+        concat_info: dict[str, Any] | None = None,
     ) -> Path:
         """
         Generate a metadata text file with playlist and track information.
@@ -25,6 +26,10 @@ class MetadataGenerator:
                 - playlist_dir: Directory where files are stored
                 - total_tracks: Total number of tracks
                 - files: List of file info dictionaries
+            concat_info: Optional dictionary with concatenation info:
+                - path: Path to concatenated file
+                - timestamps: List of timestamp dictionaries
+                - total_duration: Total duration in seconds
 
         Returns:
             Path to the created info file
@@ -44,6 +49,26 @@ class MetadataGenerator:
         lines.append(f"Download Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"Output Directory: {playlist_info['playlist_dir']}")
         lines.append("")
+
+        # Concatenated file information (if available)
+        if concat_info:
+            lines.append("=" * 80)
+            lines.append("CONCATENATED FILE")
+            lines.append("=" * 80)
+            lines.append("")
+            lines.append(f"Concatenated File: {concat_info['path'].name}")
+            lines.append(f"Total Duration: {MetadataGenerator._format_duration(concat_info['total_duration'])}")
+            lines.append("")
+            lines.append("Track Timestamps (for navigation in concatenated file):")
+            lines.append("")
+
+            for ts in concat_info["timestamps"]:
+                lines.append(f"  Track {ts['track_number']}: {ts['title']}")
+                lines.append(f"    Start: {ts['start_formatted']} | End: {ts['end_formatted']}")
+                lines.append(f"    Duration: {MetadataGenerator._format_duration(ts['duration'])}")
+                lines.append("")
+
+            lines.append("")
 
         # Track listing
         lines.append("=" * 80)
