@@ -19,6 +19,10 @@ A Python CLI tool that downloads YouTube playlists and converts them to MP3 file
   - Metadata file includes timestamps for each track in the concatenated file
   - Easy navigation by time to find specific tracks
   - Use `--no-concatenate` to skip creating the concatenated file
+- **Randomized concatenation**: Also creates a shuffled version of the concatenated file
+  - Great for keeping things fresh on repeated listens (e.g., running playlists)
+  - Includes a track listing file showing the randomized order with timestamps
+  - Use `rerandomize` command to create a new shuffle without re-downloading
 - Generate m3u playlist file with extended metadata
 - Create playlist metadata file with track listing and YouTube URLs
 - Organized output: `files/{sanitized-playlist-title}/`
@@ -129,6 +133,33 @@ streamstofiles "https://youtube.com/playlist?list=..." --quality 320 --output-di
 streamstofiles --help
 ```
 
+### Re-randomize Existing Tracks
+
+If you want a fresh shuffle of your playlist without re-downloading, use the `rerandomize` command:
+
+```bash
+# Re-randomize an existing playlist directory
+rerandomize files/My_Playlist/
+
+# Or run via uv
+uv run rerandomize files/My_Playlist/
+
+# Or use the Makefile (edit PLAYLIST_DIR first)
+make rerandomize PLAYLIST_DIR=files/My_Playlist/
+```
+
+This will:
+1. Scan the directory for numbered MP3 files (01-xxx.mp3, 02-xxx.mp3, etc.)
+2. Validate all files exist and are readable
+3. Create a new `*_randomized_YYYY-MM-DD.mp3` file with tracks in a different order
+4. Generate a new `randomized_tracklist_YYYY-MM-DD.txt` showing the new order with timestamps
+
+Each run creates new dated files, so you can keep multiple shuffles or delete old ones as needed.
+
+```bash
+rerandomize --help
+```
+
 ## Output Structure
 
 Files are organized as follows:
@@ -139,7 +170,9 @@ files/
     ├── 01-First_Video_Title.mp3
     ├── 02-Second_Video_Title.mp3
     ├── 03-Third_Video_Title.mp3
-    ├── Sanitized_Playlist_Title_complete.mp3  (concatenated file)
+    ├── Sanitized_Playlist_Title_complete.mp3              (sequential concatenated file)
+    ├── Sanitized_Playlist_Title_randomized_2026-01-18.mp3 (shuffled, dated)
+    ├── randomized_tracklist_2026-01-18.txt                (track order for randomized file)
     ├── playlist.m3u
     └── playlist_info.txt
 ```
@@ -215,6 +248,7 @@ This solves the limitation where WearOS apps can't play multiple files sequentia
 - `make setup` - Initialize uv environment and install dependencies
 - `make install` - Install package in development mode
 - `make run` - Run with default example playlist
+- `make rerandomize PLAYLIST_DIR=<path>` - Re-randomize existing tracks in a directory
 - `make clean` - Remove output files and build artifacts
 
 ### Dependencies

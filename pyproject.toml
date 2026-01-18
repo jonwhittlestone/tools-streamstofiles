@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 streamstofiles = "streamstofiles.cli:main"
+rerandomize = "streamstofiles.cli:rerandomize"
 
 [build-system]
 requires = ["hatchling"]
