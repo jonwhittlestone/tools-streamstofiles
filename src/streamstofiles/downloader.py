@@ -123,6 +123,8 @@ class PlaylistDownloader:
             "quiet": True,
             "extract_flat": False,
             "no_warnings": False,
+            # Enable remote JS challenge solver from GitHub
+            "remote_components": ["ejs:github"],
         }
 
         # Add cookies file if present
@@ -188,6 +190,8 @@ class PlaylistDownloader:
                     "key": "EmbedThumbnail",
                 },
             ],
+            # Enable remote JS challenge solver from GitHub
+            "remote_components": ["ejs:github"],
             "writethumbnail": True,
             "outtmpl": output_template,
             "quiet": False,
