@@ -1,11 +1,21 @@
 """YouTube playlist downloading using yt-dlp."""
 
+import shutil
+import time
 from pathlib import Path
 from typing import Any
 
 import yt_dlp
 
 from .utils import ensure_directory, format_track_number, sanitize_filename
+
+
+def _detect_node_path() -> str | None:
+    """Detect Node.js path for yt-dlp JS runtime."""
+    node_path = shutil.which("node")
+    if node_path:
+        return node_path
+    return None
 
 
 class PlaylistDownloader:
@@ -48,6 +58,11 @@ class PlaylistDownloader:
             if entry is None:
                 continue
 
+            # Add delay between downloads to avoid rate limiting (skip first)
+            if idx > 1:
+                print("Waiting 3 seconds before next download...")
+                time.sleep(3)
+
             # Get video URL - prefer webpage_url, fallback to constructing from id
             video_url = entry.get("webpage_url") or entry.get("url") or f"https://www.youtube.com/watch?v={entry['id']}"
 
@@ -78,6 +93,11 @@ class PlaylistDownloader:
             "extract_flat": False,
             "no_warnings": False,
         }
+
+        # Add JS runtime if Node.js is available
+        node_path = _detect_node_path()
+        if node_path:
+            ydl_opts["js_runtimes"] = {"node": {"path": node_path}}
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(playlist_url, download=False)
@@ -139,26 +159,48 @@ class PlaylistDownloader:
             "progress_hooks": [self._progress_hook],
         }
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(video_url, download=True)
+        # Add JS runtime if Node.js is available (required for some YouTube videos)
+        node_path = _detect_node_path()
+        if node_path:
+            ydl_opts["js_runtimes"] = {"node": {"path": node_path}}
 
-            mp3_path = output_dir / f"{track_num}-{sanitized_title}.mp3"
+        max_retries = 3
+        retry_delays = [10, 20, 30]  # Increasing delays for each retry
 
-            return {
-                "path": mp3_path,
-                "title": video_title,
-                "artist": uploader,
-                "album": playlist_title,
-                "track_number": track_index,
-                "total_tracks": total_tracks,
-                "duration": duration,
-                "url": video_url,
-            }
+        for attempt in range(max_retries):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(video_url, download=True)
 
-        except Exception as e:
-            print(f"Error downloading {video_title}: {e}")
-            return None
+                mp3_path = output_dir / f"{track_num}-{sanitized_title}.mp3"
+
+                # Verify the MP3 file was actually created
+                if not mp3_path.exists():
+                    print(f"Warning: Audio extraction failed for '{video_title}' - MP3 file not created")
+                    return None
+
+                return {
+                    "path": mp3_path,
+                    "title": video_title,
+                    "artist": uploader,
+                    "album": playlist_title,
+                    "track_number": track_index,
+                    "total_tracks": total_tracks,
+                    "duration": duration,
+                    "url": video_url,
+                }
+
+            except Exception as e:
+                error_str = str(e)
+                is_rate_limit = "403" in error_str or "Forbidden" in error_str
+
+                if is_rate_limit and attempt < max_retries - 1:
+                    delay = retry_delays[attempt]
+                    print(f"Rate limited on '{video_title}', retrying in {delay}s (attempt {attempt + 2}/{max_retries})...")
+                    time.sleep(delay)
+                else:
+                    print(f"Error downloading {video_title}: {e}")
+                    return None
 
     def _progress_hook(self, d: dict[str, Any]) -> None:
         """Hook for download progress updates."""

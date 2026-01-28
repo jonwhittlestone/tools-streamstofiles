@@ -1,6 +1,7 @@
 .PHONY: help setup install run rerandomize clean test
 
-# Default playlist directory for rerandomize (override with PLAYLIST_DIR=...)
+# Optional variables (override on command line)
+PLAYLIST_URL ?=
 PLAYLIST_DIR ?=
 
 help:
@@ -10,7 +11,7 @@ help:
 	@echo "Available targets:"
 	@echo "  make setup                           - Initialize uv environment and install dependencies"
 	@echo "  make install                         - Install package in development mode"
-	@echo "  make run                             - Run with default example playlist"
+	@echo "  make run [PLAYLIST_URL=<url>]        - Run with default or provided playlist"
 	@echo "  make rerandomize PLAYLIST_DIR=<path> - Re-randomize existing tracks in a directory"
 	@echo "  make clean                           - Remove output files and build artifacts"
 	@echo "  make test                            - Run tests (not yet implemented)"
@@ -27,8 +28,13 @@ install: setup
 	uv pip install -e .
 
 run:
+ifdef PLAYLIST_URL
+	@echo "Running streamstofiles with provided playlist..."
+	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run streamstofiles "$(PLAYLIST_URL)"'
+else
 	@echo "Running streamstofiles with default playlist..."
-	uv run streamstofiles
+	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run streamstofiles'
+endif
 
 rerandomize:
 ifndef PLAYLIST_DIR
@@ -37,7 +43,7 @@ ifndef PLAYLIST_DIR
 	@exit 1
 endif
 	@echo "Re-randomizing tracks in $(PLAYLIST_DIR)..."
-	uv run rerandomize "$(PLAYLIST_DIR)"
+	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run rerandomize "$(PLAYLIST_DIR)"'
 
 clean:
 	@echo "Cleaning up..."

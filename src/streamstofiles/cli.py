@@ -86,7 +86,13 @@ def main(
 
         click.echo(f"\n\nDownload complete!")
         click.echo(f"Playlist: {result['playlist_title']}")
-        click.echo(f"Total tracks: {result['total_tracks']}")
+        downloaded = len(result['files'])
+        total = result['total_tracks']
+        failed = total - downloaded
+        pct = (downloaded / total * 100) if total > 0 else 0
+        click.echo(f"Downloaded: {downloaded}/{total} tracks ({pct:.0f}%)")
+        if failed > 0:
+            click.echo(f"Failed: {failed} tracks")
         click.echo(f"Output directory: {result['playlist_dir']}")
         click.echo()
 
@@ -155,7 +161,7 @@ def main(
 
         # Summary
         click.echo("=" * 60)
-        click.echo(f"✓ Successfully processed {len(result['files'])} tracks")
+        click.echo(f"✓ Successfully processed {downloaded}/{total} tracks ({pct:.0f}%)")
         click.echo(f"✓ Files saved to: {result['playlist_dir']}")
         click.echo(f"✓ Playlist file: {result['playlist_dir']}/playlist.m3u")
         if concat_info:
