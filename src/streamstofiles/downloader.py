@@ -44,8 +44,16 @@ class PlaylistDownloader:
         """
         # First, get playlist info to determine track count and playlist title
         info = self._get_playlist_info(playlist_url)
-        playlist_title = info["title"]
-        entries = info["entries"]
+        playlist_title = info.get("title", "Unknown")
+
+        # Handle both playlists (has 'entries') and single videos (no 'entries')
+        if "entries" in info:
+            entries = info["entries"]
+        else:
+            # Single video - wrap it in a list
+            entries = [info]
+            playlist_title = info.get("uploader", "Single_Video")
+
         total_tracks = len(entries)
 
         # Create sanitized directory name
