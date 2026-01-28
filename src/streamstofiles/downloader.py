@@ -69,9 +69,24 @@ class PlaylistDownloader:
         info = self._get_playlist_info(playlist_url)
         playlist_title = info.get("title", "Unknown")
 
+        # Check if playlist is private or unavailable
+        availability = info.get("availability")
+        if availability in ("private", "premium_only", "subscriber_only"):
+            raise ValueError(
+                f"Playlist is {availability}. This tool only supports public playlists. "
+                "Private playlists cannot be downloaded."
+            )
+
         # Handle both playlists (has 'entries') and single videos (no 'entries')
         if "entries" in info:
             entries = info["entries"]
+            # Filter out None entries (unavailable videos)
+            entries = [e for e in entries if e is not None]
+            if not entries:
+                raise ValueError(
+                    "Playlist appears to be empty or private. "
+                    "This tool only supports public playlists with available videos."
+                )
         else:
             # Single video - wrap it in a list
             entries = [info]
@@ -86,9 +101,6 @@ class PlaylistDownloader:
         # Download each video with proper numbering
         downloaded_files = []
         for idx, entry in enumerate(entries, start=1):
-            if entry is None:
-                continue
-
             # Add delay between downloads to avoid rate limiting (skip first)
             if idx > 1:
                 print("Waiting 3 seconds before next download...")

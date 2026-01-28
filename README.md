@@ -2,9 +2,11 @@
 
 A Python CLI tool that downloads YouTube playlists and converts them to MP3 files with proper ID3 tags, embedded album art, and generates an m3u playlist file.
 
+> **Note:** This tool only works with **public YouTube playlists**. Private playlists are not supported.
+
 ## Features
 
-- Download entire YouTube playlists as MP3 files
+- Download entire **public** YouTube playlists as MP3 files
 - Convert audio at 192 kbps quality (configurable: 128, 192, or 320 kbps)
 - Add comprehensive ID3 tags to each MP3:
   - Title (video title)
@@ -369,6 +371,15 @@ Ensure you have write permissions in the current directory or specify a differen
 Error: Video unavailable
 ```
 Some videos in playlists may be private, deleted, or region-restricted. The tool will skip these and continue with available videos.
+
+### Private playlist error
+```
+Error: Playlist is private. This tool only supports public playlists.
+```
+This tool only works with **public** YouTube playlists. Private playlists cannot be downloaded, even with cookies. To fix this:
+
+1. Make the playlist public or unlisted on YouTube, or
+2. Use a public playlist URL instead
 
 ### Rate limiting (HTTP 403 errors)
 ```
