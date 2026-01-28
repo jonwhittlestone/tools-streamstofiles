@@ -211,3 +211,6 @@ files/
 
 # Environment variables with credentials
 .env.local
+
+# YouTube cookies (contains authentication data)
+cookies.txt

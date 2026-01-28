@@ -82,6 +82,28 @@ winget install ffmpeg
 
 ## Configuration
 
+### YouTube Cookies (Optional)
+
+To avoid rate limiting when downloading many videos, you can provide YouTube cookies from your browser:
+
+1. Install a browser extension to export cookies (e.g., "Get cookies.txt LOCALLY" for Chrome/Firefox)
+2. Export cookies from youtube.com as `cookies.txt`
+3. Place the file in the project root directory
+
+The tool will automatically detect and use `cookies.txt` if present. You'll see a log message indicating whether cookies are being used:
+
+```
+Using cookies: /path/to/cookies.txt
+```
+
+Or if not found:
+
+```
+No cookies.txt found (rate limiting may occur)
+```
+
+**Note:** `cookies.txt` is gitignored and will not be committed to version control.
+
 ### PocketCasts Credentials
 
 To enable automated uploads to PocketCasts, create a `.env.local` file with your credentials:
@@ -347,6 +369,16 @@ Ensure you have write permissions in the current directory or specify a differen
 Error: Video unavailable
 ```
 Some videos in playlists may be private, deleted, or region-restricted. The tool will skip these and continue with available videos.
+
+### Rate limiting (HTTP 403 errors)
+```
+ERROR: unable to download video data: HTTP Error 403: Forbidden
+```
+YouTube may rate limit requests when downloading many videos. The tool will automatically retry failed downloads with increasing delays. To reduce rate limiting:
+
+1. Add a `cookies.txt` file to the project root (see Configuration section)
+2. The tool already includes a 3-second delay between downloads
+3. Failed downloads are automatically retried up to 3 times with 10s, 20s, 30s delays
 
 ## License
 

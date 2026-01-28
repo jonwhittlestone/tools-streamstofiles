@@ -18,6 +18,19 @@ def _detect_node_path() -> str | None:
     return None
 
 
+def _detect_cookies_file() -> Path | None:
+    """Detect cookies.txt in the project root."""
+    # Try common locations for the cookies file
+    possible_paths = [
+        Path("cookies.txt"),  # Current directory
+        Path(__file__).parent.parent.parent.parent / "cookies.txt",  # Project root
+    ]
+    for path in possible_paths:
+        if path.exists():
+            return path.resolve()
+    return None
+
+
 class PlaylistDownloader:
     """Downloads YouTube playlists and converts to MP3."""
 
@@ -42,6 +55,16 @@ class PlaylistDownloader:
         Returns:
             Dictionary containing playlist info and downloaded file paths
         """
+        # Log configuration status
+        cookies_path = _detect_cookies_file()
+        node_path = _detect_node_path()
+        if cookies_path:
+            print(f"Using cookies: {cookies_path}", flush=True)
+        else:
+            print("No cookies.txt found (rate limiting may occur)", flush=True)
+        if node_path:
+            print(f"Using Node.js: {node_path}", flush=True)
+
         # First, get playlist info to determine track count and playlist title
         info = self._get_playlist_info(playlist_url)
         playlist_title = info.get("title", "Unknown")
@@ -101,6 +124,11 @@ class PlaylistDownloader:
             "extract_flat": False,
             "no_warnings": False,
         }
+
+        # Add cookies file if present
+        cookies_path = _detect_cookies_file()
+        if cookies_path:
+            ydl_opts["cookiefile"] = str(cookies_path)
 
         # Add JS runtime if Node.js is available
         node_path = _detect_node_path()
@@ -166,6 +194,11 @@ class PlaylistDownloader:
             "no_warnings": False,
             "progress_hooks": [self._progress_hook],
         }
+
+        # Add cookies file if present
+        cookies_path = _detect_cookies_file()
+        if cookies_path:
+            ydl_opts["cookiefile"] = str(cookies_path)
 
         # Add JS runtime if Node.js is available (required for some YouTube videos)
         node_path = _detect_node_path()
