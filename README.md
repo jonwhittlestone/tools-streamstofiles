@@ -175,6 +175,18 @@ streamstofiles --no-update-tags
 streamstofiles --no-concatenate
 ```
 
+**Download a single video (ignore playlist in URL):**
+```bash
+streamstofiles --no-playlist "https://www.youtube.com/watch?v=ABC123&list=RD..."
+```
+
+If the video has chapters, they are automatically split into individual numbered files and processed the same way as a playlist — with ID3 tags, concatenation, and randomization. If there are no chapters, a single MP3 is produced.
+
+Via Makefile:
+```bash
+make run PLAYLIST_URL="https://www.youtube.com/watch?v=ABC123&list=RD..." NO_PLAYLIST=1
+```
+
 **Combine options:**
 ```bash
 streamstofiles "https://youtube.com/playlist?list=..." --quality 320 --output-dir ~/downloads
@@ -301,6 +313,7 @@ This solves the limitation where WearOS apps can't play multiple files sequentia
 - `make setup` - Initialize uv environment and install dependencies
 - `make install` - Install package in development mode
 - `make run` - Run with default example playlist
+- `make run PLAYLIST_URL=<url> NO_PLAYLIST=1` - Download a single video (chapters split automatically)
 - `make rerandomize PLAYLIST_DIR=<path>` - Re-randomize existing tracks in a directory
 - `make clean` - Remove output files and build artifacts
 

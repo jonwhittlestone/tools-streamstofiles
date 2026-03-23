@@ -1,6 +1,7 @@
 """YouTube playlist downloading using yt-dlp."""
 
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -34,16 +35,18 @@ def _detect_cookies_file() -> Path | None:
 class PlaylistDownloader:
     """Downloads YouTube playlists and converts to MP3."""
 
-    def __init__(self, output_dir: Path, quality: str = "192"):
+    def __init__(self, output_dir: Path, quality: str = "192", no_playlist: bool = False):
         """
         Initialize the downloader.
 
         Args:
             output_dir: Base directory for output files
             quality: MP3 quality in kbps (default: 192)
+            no_playlist: If True, download only the single video even if URL contains a playlist
         """
         self.output_dir = Path(output_dir)
         self.quality = quality
+        self.no_playlist = no_playlist
 
     def download_playlist(self, playlist_url: str) -> dict[str, Any]:
         """
@@ -92,11 +95,30 @@ class PlaylistDownloader:
             entries = [info]
             playlist_title = info.get("uploader", "Single_Video")
 
-        total_tracks = len(entries)
-
         # Create sanitized directory name
         sanitized_title = sanitize_filename(playlist_title)
         playlist_dir = ensure_directory(self.output_dir / sanitized_title)
+
+        # Special case: single video with chapters — split into chapter files
+        if len(entries) == 1 and entries[0].get("chapters"):
+            chapters = entries[0]["chapters"]
+            print(f"Detected {len(chapters)} chapters — splitting into individual files...")
+            video_url = (
+                entries[0].get("webpage_url")
+                or entries[0].get("url")
+                or f"https://www.youtube.com/watch?v={entries[0]['id']}"
+            )
+            downloaded_files = self._download_and_split_chapters(
+                video_url, playlist_dir, entries[0], playlist_title, chapters
+            )
+            return {
+                "playlist_title": playlist_title,
+                "playlist_dir": playlist_dir,
+                "total_tracks": len(chapters),
+                "files": downloaded_files,
+            }
+
+        total_tracks = len(entries)
 
         # Download each video with proper numbering
         downloaded_files = []
@@ -137,6 +159,7 @@ class PlaylistDownloader:
             "no_warnings": False,
             # Enable remote JS challenge solver from GitHub
             "remote_components": ["ejs:github"],
+            "noplaylist": self.no_playlist,
         }
 
         # Add cookies file if present
@@ -258,6 +281,114 @@ class PlaylistDownloader:
                 else:
                     print(f"Error downloading {video_title}: {e}")
                     return None
+
+    def _download_and_split_chapters(
+        self,
+        video_url: str,
+        output_dir: Path,
+        entry: dict[str, Any],
+        playlist_title: str,
+        chapters: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Download a single video and split it into per-chapter MP3 files.
+
+        Args:
+            video_url: URL of the video
+            output_dir: Directory to save the files
+            entry: Video info dict
+            playlist_title: Used as album name
+            chapters: List of chapter dicts with start_time, end_time, title
+
+        Returns:
+            List of file info dicts, one per chapter
+        """
+        uploader = entry.get("uploader", entry.get("channel", "Unknown"))
+
+        # Download the full video as a single MP3 to a temp file
+        temp_stem = sanitize_filename(entry.get("title", "video"), max_length=80)
+        temp_template = str(output_dir / f"_full_{temp_stem}.%(ext)s")
+
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": self.quality,
+                },
+            ],
+            "remote_components": ["ejs:github"],
+            "outtmpl": temp_template,
+            "quiet": False,
+            "no_warnings": False,
+            "progress_hooks": [self._progress_hook],
+            "noplaylist": True,
+        }
+
+        cookies_path = _detect_cookies_file()
+        if cookies_path:
+            ydl_opts["cookiefile"] = str(cookies_path)
+
+        node_path = _detect_node_path()
+        if node_path:
+            ydl_opts["js_runtimes"] = {"node": {"path": node_path}}
+
+        print(f"Downloading full video for chapter splitting...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.extract_info(video_url, download=True)
+
+        full_mp3 = output_dir / f"_full_{temp_stem}.mp3"
+        if not full_mp3.exists():
+            print("Error: Full video download failed — cannot split chapters.")
+            return []
+
+        # Split into chapters using ffmpeg
+        total_chapters = len(chapters)
+        chapter_files = []
+
+        for idx, chapter in enumerate(chapters, start=1):
+            track_num = format_track_number(idx, total_chapters)
+            chapter_title = sanitize_filename(chapter.get("title", f"Chapter_{idx}"), max_length=80)
+            out_path = output_dir / f"{track_num}-{chapter_title}.mp3"
+
+            start = chapter["start_time"]
+            end = chapter["end_time"]
+            duration = end - start
+
+            print(f"Extracting chapter {idx}/{total_chapters}: {chapter.get('title', f'Chapter {idx}')}")
+
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-i", str(full_mp3),
+                    "-ss", str(start),
+                    "-t", str(duration),
+                    "-c:a", "libmp3lame",
+                    "-b:a", f"{self.quality}k",
+                    "-y",
+                    str(out_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            chapter_files.append({
+                "path": out_path,
+                "title": chapter.get("title", f"Chapter {idx}"),
+                "artist": uploader,
+                "album": playlist_title,
+                "track_number": idx,
+                "total_tracks": total_chapters,
+                "duration": int(duration),
+                "url": video_url,
+            })
+
+        # Remove the full temp file
+        full_mp3.unlink()
+
+        return chapter_files
 
     def _progress_hook(self, d: dict[str, Any]) -> None:
         """Hook for download progress updates."""

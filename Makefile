@@ -3,19 +3,29 @@
 # Optional variables (override on command line)
 PLAYLIST_URL ?=
 PLAYLIST_DIR ?=
+NO_PLAYLIST ?=
 
 help:
 	@echo "StreamsToFiles - Makefile Commands"
 	@echo "===================================="
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make setup                           - Initialize uv environment and install dependencies"
-	@echo "  make install                         - Install package in development mode"
-	@echo "  make run [PLAYLIST_URL=<url>]        - Run with default or provided playlist"
-	@echo "  make rerandomize PLAYLIST_DIR=<path> - Re-randomize existing tracks in a directory"
-	@echo "  make clean                           - Remove output files and build artifacts"
-	@echo "  make test                            - Run tests (not yet implemented)"
-	@echo "  make help                            - Show this help message"
+	@echo "  make setup                                      - Initialize uv environment and install dependencies"
+	@echo "  make install                                    - Install package in development mode"
+	@echo "  make run [PLAYLIST_URL=<url>]                  - Run with default or provided playlist"
+	@echo "  make run PLAYLIST_URL=<url> NO_PLAYLIST=1      - Download a single video (ignore playlist in URL)"
+	@echo "    (if the video has chapters, they are split into individual files)"
+	@echo ""
+	@echo "Notes:"
+	@echo "  Track announcements are enabled by default in concatenated files (macOS only)."
+	@echo "  Pass --no-announce-tracks to disable: make run PLAYLIST_URL=<url> -- --no-announce-tracks"
+	@echo "  make rerandomize PLAYLIST_DIR=<path>           - Re-randomize existing tracks in a directory"
+	@echo "  make clean                                      - Remove output files and build artifacts"
+	@echo "  make test                                       - Run tests (not yet implemented)"
+	@echo "  make help                                       - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make run PLAYLIST_URL=\"https://youtube.com/watch?v=ABC123&list=RD...\" NO_PLAYLIST=1"
 	@echo ""
 
 setup:
@@ -30,7 +40,7 @@ install: setup
 run:
 ifdef PLAYLIST_URL
 	@echo "Running streamstofiles with provided playlist..."
-	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run streamstofiles "$(PLAYLIST_URL)"'
+	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run streamstofiles "$(PLAYLIST_URL)" $(if $(NO_PLAYLIST),--no-playlist,)'
 else
 	@echo "Running streamstofiles with default playlist..."
 	@bash -c 'source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true; uv run streamstofiles'
