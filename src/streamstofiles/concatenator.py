@@ -1,20 +1,111 @@
 """Audio file concatenation for creating single long-form files."""
 
 import random
+import shutil
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+_NUM_WORDS = {
+    1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
+    6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten",
+    11: "Eleven", 12: "Twelve", 13: "Thirteen", 14: "Fourteen", 15: "Fifteen",
+    16: "Sixteen", 17: "Seventeen", 18: "Eighteen", 19: "Nineteen", 20: "Twenty",
+    21: "Twenty-one", 22: "Twenty-two", 23: "Twenty-three", 24: "Twenty-four",
+    25: "Twenty-five", 26: "Twenty-six", 27: "Twenty-seven", 28: "Twenty-eight",
+    29: "Twenty-nine", 30: "Thirty", 40: "Forty", 50: "Fifty",
+    60: "Sixty", 70: "Seventy", 80: "Eighty", 90: "Ninety",
+}
+
+
+def _num_to_words(n: int) -> str:
+    if n in _NUM_WORDS:
+        return _NUM_WORDS[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return f"{_NUM_WORDS[tens * 10]}-{_NUM_WORDS[ones].lower()}"
+    return str(n)
 
 
 class AudioConcatenator:
     """Concatenates multiple audio files into a single long file."""
 
     @staticmethod
+    def _say_available() -> bool:
+        return shutil.which("say") is not None
+
+    @staticmethod
+    def _generate_track_announcement(
+        track_number: int,
+        title: str,
+        output_path: Path,
+        quality: str,
+        voice: str = "Daniel",
+        rate: int = 145,
+    ) -> bool:
+        """
+        Generate a spoken track announcement using macOS say, saved as MP3.
+
+        Returns True on success, False if say is unavailable or fails.
+        """
+        if not AudioConcatenator._say_available():
+            return False
+
+        text = f"Track {_num_to_words(track_number)}. {title}."
+
+        with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as tmp:
+            aiff_path = Path(tmp.name)
+
+        try:
+            subprocess.run(
+                ["say", "-v", voice, "-r", str(rate), "-o", str(aiff_path), text],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-i", str(aiff_path),
+                    "-c:a", "libmp3lame",
+                    "-b:a", f"{quality}k",
+                    "-y",
+                    str(output_path),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        finally:
+            aiff_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _generate_silence(duration: float, output_path: Path, quality: str) -> None:
+        """Generate a silent MP3 clip of the given duration in seconds."""
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-f", "lavfi",
+                "-i", f"anullsrc=r=44100:cl=stereo",
+                "-t", str(duration),
+                "-c:a", "libmp3lame",
+                "-b:a", f"{quality}k",
+                "-y",
+                str(output_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    @staticmethod
     def concatenate_files(
         file_list: list[dict[str, Any]],
         output_path: Path,
         quality: str = "192",
+        announce_tracks: bool = True,
     ) -> dict[str, Any]:
         """
         Concatenate multiple audio files into a single MP3 file.
@@ -30,12 +121,38 @@ class AudioConcatenator:
         if not file_list:
             raise ValueError("No files to concatenate")
 
-        # Calculate timestamps for each track in the concatenated file
+        # Generate announcement clips and build expanded file list
+        temp_dir = output_path.parent / "_announcements"
+        announcement_files: list[Path] = []
+        expanded_list = []
+
+        if announce_tracks and AudioConcatenator._say_available():
+            temp_dir.mkdir(exist_ok=True)
+            for file_info in file_list:
+                track_num = file_info.get("track_number", file_info.get("_idx", 1))
+                title = file_info.get("title", "")
+                announcement_path = temp_dir / f"announce_{track_num:03d}.mp3"
+                silence_path = temp_dir / f"silence_{track_num:03d}.mp3"
+
+                ok = AudioConcatenator._generate_track_announcement(
+                    track_num, title, announcement_path, quality
+                )
+                if ok:
+                    AudioConcatenator._generate_silence(0.6, silence_path, quality)
+                    announcement_files.extend([announcement_path, silence_path])
+                    expanded_list.append({"path": announcement_path, "duration": 0, "title": "", "_skip_timestamp": True})
+                    expanded_list.append({"path": silence_path, "duration": 0, "title": "", "_skip_timestamp": True})
+
+                expanded_list.append(file_info)
+        else:
+            expanded_list = file_list
+
+        # Calculate timestamps for each track in the concatenated file (skip announcement clips)
         timestamps = AudioConcatenator._calculate_timestamps(file_list)
 
         # Create a temporary file list for ffmpeg concat demuxer
         concat_list_path = output_path.parent / "concat_list.txt"
-        AudioConcatenator._create_concat_list(file_list, concat_list_path)
+        AudioConcatenator._create_concat_list(expanded_list, concat_list_path)
 
         try:
             # Concatenate using ffmpeg concat demuxer and convert to MP3
@@ -65,6 +182,14 @@ class AudioConcatenator:
             # Clean up temporary concat list file
             if concat_list_path.exists():
                 concat_list_path.unlink()
+            # Clean up announcement clips
+            for f in announcement_files:
+                f.unlink(missing_ok=True)
+            if temp_dir.exists():
+                try:
+                    temp_dir.rmdir()
+                except OSError:
+                    pass
 
         return {
             "path": output_path,
@@ -144,6 +269,7 @@ class AudioConcatenator:
         file_list: list[dict[str, Any]],
         output_path: Path,
         quality: str = "192",
+        announce_tracks: bool = True,
     ) -> dict[str, Any]:
         """
         Concatenate multiple audio files into a single MP3 file in randomized order.
@@ -159,12 +285,14 @@ class AudioConcatenator:
         if not file_list:
             raise ValueError("No files to concatenate")
 
-        # Create a shuffled copy of the file list
+        # Create a shuffled copy of the file list, re-number for announcements
         shuffled_list = file_list.copy()
         random.shuffle(shuffled_list)
+        for idx, item in enumerate(shuffled_list, start=1):
+            item["_idx"] = idx
 
         # Use the regular concatenation with the shuffled list
-        result = AudioConcatenator.concatenate_files(shuffled_list, output_path, quality)
+        result = AudioConcatenator.concatenate_files(shuffled_list, output_path, quality, announce_tracks=announce_tracks)
 
         # Add the shuffled order to the result
         result["shuffled_order"] = shuffled_list

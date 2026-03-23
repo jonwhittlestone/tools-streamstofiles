@@ -44,12 +44,26 @@ DEFAULT_PLAYLIST = "https://www.youtube.com/watch?v=LZmtl3l1R9A&list=PLW7vZQVayo
     default=True,
     help="Create a single concatenated file from all tracks (default: enabled)",
 )
+@click.option(
+    "--no-playlist",
+    "no_playlist",
+    is_flag=True,
+    default=False,
+    help="Download only the single video, ignoring any playlist in the URL",
+)
+@click.option(
+    "--announce-tracks/--no-announce-tracks",
+    default=True,
+    help="Speak each track number and title before it plays in the concatenated file (macOS only, default: enabled)",
+)
 def main(
     playlist_url: str,
     output_dir: Path,
     quality: str,
     update_tags: bool,
     concatenate: bool,
+    no_playlist: bool,
+    announce_tracks: bool,
 ) -> None:
     """
     Download a YouTube playlist and convert to MP3 files with ID3 tags and m3u playlist.
@@ -73,12 +87,14 @@ def main(
     click.echo(f"Output directory: {output_dir}")
     click.echo(f"Quality: {quality} kbps")
     click.echo(f"Concatenate: {'Yes' if concatenate else 'No'}")
+    if no_playlist:
+        click.echo("Mode: Single video (ignoring playlist)")
     click.echo(f"=" * 60)
     click.echo()
 
     try:
         # Initialize downloader
-        downloader = PlaylistDownloader(output_dir, quality)
+        downloader = PlaylistDownloader(output_dir, quality, no_playlist=no_playlist)
 
         # Download playlist
         click.echo("Downloading playlist...")
@@ -122,7 +138,8 @@ def main(
             concat_info = AudioConcatenator.concatenate_files(
                 result["files"],
                 concat_path,
-                quality
+                quality,
+                announce_tracks=announce_tracks,
             )
             click.echo(f"  ✓ Created concatenated file: {concat_path.name}")
             click.echo(f"  ✓ Total duration: {AudioConcatenator._format_timestamp(concat_info['total_duration'])}")
@@ -136,7 +153,8 @@ def main(
             randomized_concat_info = AudioConcatenator.concatenate_files_randomized(
                 result["files"],
                 randomized_path,
-                quality
+                quality,
+                announce_tracks=announce_tracks,
             )
             click.echo(f"  ✓ Created randomized file: {randomized_path.name}")
 
@@ -236,7 +254,12 @@ def scan_existing_tracks(directory: Path) -> list[dict[str, Any]]:
     default="192",
     help="MP3 quality in kbps (default: 192)",
 )
-def rerandomize(directory: Path, quality: str) -> None:
+@click.option(
+    "--announce-tracks/--no-announce-tracks",
+    default=True,
+    help="Speak each track number and title before it plays in the concatenated file (macOS only)",
+)
+def rerandomize(directory: Path, quality: str, announce_tracks: bool) -> None:
     """
     Re-randomize existing tracks into a new concatenated file.
 
@@ -298,7 +321,8 @@ def rerandomize(directory: Path, quality: str) -> None:
         randomized_concat_info = AudioConcatenator.concatenate_files_randomized(
             files,
             randomized_path,
-            quality
+            quality,
+            announce_tracks=announce_tracks,
         )
         click.echo(f"  ✓ Created randomized file: {randomized_path.name}")
         click.echo(f"  ✓ Total duration: {AudioConcatenator._format_timestamp(randomized_concat_info['total_duration'])}")
